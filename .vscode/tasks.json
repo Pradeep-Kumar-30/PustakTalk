@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PustakTalk: setup",
+      "type": "shell",
+      "command": "make setup",
+      "problemMatcher": []
+    },
+    {
+      "label": "PustakTalk: start stack",
+      "type": "shell",
+      "command": "make up",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PustakTalk: test",
+      "type": "shell",
+      "command": "make test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "PustakTalk: stop stack",
+      "type": "shell",
+      "command": "make down",
+      "problemMatcher": []
+    }
+  ]
+}

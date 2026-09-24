@@ -1,0 +1,39 @@
+services:
+  web:
+    restart: unless-stopped
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+    environment:
+      NEXT_PUBLIC_API_URL: /api/v1
+    ports: !reset []
+  api:
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      AUTH_COOKIE_SECURE: "true"
+    ports: !reset []
+  document-worker:
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      AUTH_COOKIE_SECURE: "true"
+  postgres:
+    restart: unless-stopped
+    ports: !reset []
+  redis:
+    restart: unless-stopped
+    ports: !reset []
+  qdrant:
+    restart: unless-stopped
+    ports: !reset []
+  minio:
+    restart: unless-stopped
+    ports: !reset []
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["80:80"]
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [web, api]

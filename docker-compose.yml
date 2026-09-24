@@ -1,0 +1,116 @@
+name: pustaktalk
+
+services:
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+        API_PROXY_TARGET: http://api:8000
+    environment:
+      NEXT_PUBLIC_API_URL: /api/v1
+      API_PROXY_TARGET: http://api:8000
+    ports: ["3000:3000"]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./apps/api
+      args:
+        INSTALL_AI: ${INSTALL_AI:-false}
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://pustaktalk:pustaktalk@postgres:5432/pustaktalk}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      HF_HOME: /models/huggingface
+    volumes: ["model-cache:/models/huggingface", "piper-voices:/models/piper"]
+    ports: ["8000:8000"]
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  document-worker:
+    build:
+      context: .
+      dockerfile: workers/document-worker/Dockerfile
+      args:
+        INSTALL_AI: ${INSTALL_AI:-false}
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://pustaktalk:pustaktalk@postgres:5432/pustaktalk}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      HF_HOME: /models/huggingface
+    volumes: ["model-cache:/models/huggingface", "piper-voices:/models/piper"]
+    depends_on:
+      api:
+        condition: service_healthy
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pustaktalk}
+      POSTGRES_USER: ${POSTGRES_USER:-pustaktalk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pustaktalk}
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pustaktalk -d pustaktalk"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --appendonly yes
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.6
+    volumes: ["qdrant-data:/qdrant/storage"]
+
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-pustaktalk}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-change-this-minio-password}
+    volumes: ["minio-data:/data"]
+    ports: ["9001:9001"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  postgres-data:
+  redis-data:
+  qdrant-data:
+  minio-data:
+  model-cache:
+  piper-voices:
